@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Memorial Document Generator</title>
+    <link rel="stylesheet" href="https://cdn.replit.com/agent/bootstrap-agent-dark-theme.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+    <div class="container mt-5">
+        <div class="row">
+            <div class="col-lg-8 mx-auto">
+                <div class="card bg-dark border-secondary">
+                    <div class="card-header">
+                        <h1 class="text-center">Memorial Document Generator API</h1>
+                    </div>
+                    <div class="card-body">
+                        <h2>About this Service</h2>
+                        <p>
+                            This API processes JSON webhook data to generate personalized memorial documents using 
+                            Google's Gemini AI. The generated documents are stored in Google Cloud Storage for later 
+                            retrieval and use.
+                        </p>
+                        
+                        <h2>API Usage</h2>
+                        <div class="alert alert-info">
+                            <p><strong>Endpoint:</strong> POST /api/process</p>
+                        </div>
+                        
+                        <h3>Request Format</h3>
+                        <p>Send a POST request with JSON data in the following format:</p>
+                        <pre class="bg-dark text-light p-3 rounded"><code>{
+  "user_id": "unique_user_identifier",
+  "reflections": [
+    {
+      "section": "Life Overview",
+      "question": "How would you describe your life's journey?",
+      "answer": "I've lived a full life with many adventures..."
+    },
+    {
+      "section": "Childhood and Family Life",
+      "question": "What are your fondest childhood memories?",
+      "answer": "Growing up on the farm..."
+    },
+    ...
+  ]
+}</code></pre>
+                        
+                        <h3>Response Format</h3>
+                        <p>The API will respond with a JSON object indicating success or failure:</p>
+                        <pre class="bg-dark text-light p-3 rounded"><code>{
+  "status": "success",
+  "message": "Document generated and stored successfully",
+  "user_id": "unique_user_identifier",
+  "document_url": "gs://bucket-name/user_id/memorial_document_20230615_123456.md"
+}</code></pre>
+                        
+                        <h3>Error Handling</h3>
+                        <p>In case of errors, the API will respond with an appropriate error message:</p>
+                        <pre class="bg-dark text-light p-3 rounded"><code>{
+  "error": "Error description"
+}</code></pre>
+                    </div>
+                    <div class="card-footer text-center">
+                        <p>&copy; 2023 Memorial Document Generator</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

@@ -1,0 +1,15 @@
+/* Additional custom styles can be added here */
+pre {
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+.card {
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+body {
+    background-color: var(--bs-dark);
+    color: var(--bs-light);
+    padding-bottom: 2rem;
+}
