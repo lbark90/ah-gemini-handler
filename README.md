@@ -16,6 +16,7 @@ This is a Python Flask API that processes incoming JSON webhooks, generates cust
 
 1. **Environment Variables**:
    Create a `.env` file with the following configuration:
+
    ```
    GCP_PROJECT_ID=your-project-id
    GCP_BUCKET_NAME=your-bucket-name
@@ -25,6 +26,7 @@ This is a Python Flask API that processes incoming JSON webhooks, generates cust
    This application uses service account authentication. Make sure you have a service account key with access to the required GCP services (Gemini AI and Cloud Storage).
 
 3. **Install Dependencies**:
+
    ```bash
    pip install -r requirements.txt
    ```
@@ -41,6 +43,7 @@ This is a Python Flask API that processes incoming JSON webhooks, generates cust
 **Endpoint**: `POST /api/process`
 
 **Request Body**:
+
 ```json
 {
   "user_id": "unique_user_id",
@@ -60,6 +63,7 @@ This is a Python Flask API that processes incoming JSON webhooks, generates cust
 ```
 
 **Response**:
+
 ```json
 {
   "status": "success",
@@ -82,12 +86,15 @@ The generated documents follow this format:
 **Knowledge Base Document:**
 
 ## Life Overview
+
 [Summary of life overview reflections]
 
 ## Childhood and Family Life
+
 [Summary of childhood reflections]
 
 ## Love and Relationships
+
 [Summary or placeholder]
 
 ...additional sections...
@@ -96,18 +103,23 @@ The generated documents follow this format:
 ## Storage Structure
 
 ### Document Storage
+
 Documents are stored in GCP buckets with the following path structure:
+
 ```
 {user_id}/profile_description/memorial_document_{timestamp}.md
 ```
 
 ### User Credentials
+
 User credentials are stored in GCP buckets with the following structure:
+
 ```
 {user_id}/credentials/login_credentials.json
 ```
 
 The login_credentials.json file contains the user's personal information:
+
 ```json
 {
   "first_name": "User's first name",

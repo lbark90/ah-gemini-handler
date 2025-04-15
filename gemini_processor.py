@@ -1,13 +1,12 @@
 import logging
 import os
 import json
-import google.generativeai as genai
-import google.auth
-from google.oauth2 import service_account
+from google import genai
+from google.genai import types
 
 def process_with_gemini(json_data, continue_from=None, user_info=None):
     """
-    Process JSON data with Gemini AI model.
+    Process JSON data with Gemini AI model using Google Vertex AI.
     
     Args:
         json_data (str): JSON string to be inserted into the prompt
@@ -20,55 +19,32 @@ def process_with_gemini(json_data, continue_from=None, user_info=None):
     try:
         logging.debug("Initializing Gemini AI processing")
         
-        # Check if we're in development mode
-        is_development = os.environ.get("ENVIRONMENT") == "development"
+        # Load service account credentials
+        logging.info("Using service account authentication...")
         
-        if is_development:
-            # In development, prioritize API key authentication
-            api_key = os.environ.get("GOOGLE_API_KEY")
-            if api_key:
-                genai.configure(api_key=api_key)
-                logging.info("Development mode: Using API key authentication")
-            else:
-                logging.error("Development mode requires GOOGLE_API_KEY to be set")
-                raise ValueError("No API key available for development mode")
-        else:
-            # Production mode: Try service account authentication first
-            try:
-                # Get auth credentials - this will use Application Default Credentials in GCP
-                logging.info("Using service account authentication...")
-                
-                # Limited retries to avoid slow startup
-                os.environ["GOOGLE_AUTH_COMPUTE_METADATA_TIMEOUT_SECONDS"] = "2"
-                credentials, project_id = google.auth.default(
-                    scopes=['https://www.googleapis.com/auth/cloud-platform']
-                )
-                genai.configure(credentials=credentials)
-                logging.info(f"Using service account authentication with project: {project_id}")
-            except Exception as e:
-                # Fallback to API key if service account fails
-                logging.warning(f"Service account auth failed: {str(e)}, trying API key...")
-                api_key = os.environ.get("GOOGLE_API_KEY")
-                if api_key:
-                    genai.configure(api_key=api_key)
-                    logging.info("Using API key authentication as fallback")
-                else:
-                    logging.error("Authentication failed. No service account or API key available.")
-                    raise ValueError("No authentication method available")
+        # Set up the environment variable for authentication
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)),
+            "google-credentials.json"
+        )
         
-        # Select the model (use the pro model for best quality)
-        model = genai.GenerativeModel('gemini-1.5-pro')
+        # Create client with Vertex AI
+        client = genai.Client(
+            vertexai=True,
+            project="psyched-bee-455519-d7",
+            location="us-central1",
+        )
         
-        # Prepare prompt text
+        # User information section to include in prompt if provided
+        user_info_section = f"\nUser Information: {user_info}\n" if user_info else ""
+        
+        # Prepare main prompt content
         if continue_from:
-            logging.info("Continuing generation from previous truncated response")
-            prompt = f"The previous response was cut off. Please continue from:\n\n{continue_from}"
-            system_instruction = "Continue the document from where it was cut off. Maintain the same formatting, style, and tone."
+            # For continuation requests
+            prompt_text = f"The previous response was cut off. Please continue from:\n\n{continue_from}"
         else:
-            # Create message with JSON data inserted into the template
-            user_info_section = f"\nUser Information: {user_info}\n" if user_info else ""
-            
-            prompt = f"""You'll receive a list of reflections in JSON format. Each object contains:
+            # For new generation requests
+            prompt_text = f"""You'll receive a list of reflections in JSON format. Each object contains:
 - \"section\": a topic category (e.g. "Childhood and Family Life")
 - \"question\": a prompt
 - \"answer\": the individual's response
@@ -128,44 +104,53 @@ You will receive a JSON array. Each object contains:
 ---
 
 ## Output Format:
-
-```
-**Profile Summary:**
+Profile Summary:
 
 [First-person summary]
 
-**Knowledge Base Document:**
+Knowledge Base Document:
 
-## Life Overview  
-[Condensed reflections or \"need more data\" placeholder]
+Life Overview
+[Condensed reflections or "need more data" placeholder]
 
-## Childhood and Family Life  
+Childhood and Family Life
 ...
 
-## Love and Relationships  
+Love and Relationships
 ...
 
-## Success, Failure and Personal Growth  
+Success, Failure and Personal Growth
 ...
 
-## Work, Career and Business  
+Work, Career and Business
 ...
 
-## Spirituality, Beliefs and Philosophy  
+Spirituality, Beliefs and Philosophy
 ...
 
-## Hobbies, Interests and Passions  
+Hobbies, Interests and Passions
 ...
 
-## Adversity, Resilience, and Lessons Learned  
+Adversity, Resilience, and Lessons Learned
 ...
 
-## Life Legacy and Impact  
+Life Legacy and Impact
 ...
 
-## Final Reflections  
+Final Reflections
 ...
-```
+
+None
+Update Requirements File
+You'll also need to update your requirements.txt to make sure you have the correct Google Generative AI library for Vertex AI:
+
+Note on Authentication
+This implementation assumes that your service account has the necessary permissions for Vertex AI. The error you were seeing earlier indicates authentication issues. With this implementation, you should:
+
+Make sure your service account has the Vertex AI User role
+Ensure the Vertex AI and Generative AI APIs are enabled in your GCP project
+The google-credentials.json file should be properly set as an environment variable:
+The implementation I've provided follows the Vertex AI approach that has stronger authentication and typically more reliable performance for production use.
 
 ---
 
@@ -179,58 +164,67 @@ You will receive a JSON array. Each object contains:
 - Total output should remain under ~2,500 words.
 - Prioritize memory-rich, emotionally meaningful content over technical detail or long anecdotes."""
 
-        # Configure generation settings
-        generation_config = genai.GenerationConfig(
-            temperature=0.2,
-            top_p=0.8,
-            top_k=40,
+                # Create prompt part from text
+        msg_part = types.Part.from_text(text=prompt_text)
+        system_part = types.Part.from_text(text=system_instruction)
+        
+        # Set up content structure 
+        contents = [
+            types.Content(
+                role="user",
+                parts=[msg_part]
+            ),
+        ]
+        
+        # Configure generation settings with correct safety settings format
+        generate_content_config = types.GenerateContentConfig(
+            temperature=1,
+            top_p=0.95,
             max_output_tokens=8192,
+            response_modalities=["TEXT"],
+            safety_settings=[
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HATE_SPEECH",
+                    threshold="OFF"
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_DANGEROUS_CONTENT",
+                    threshold="OFF"
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_SEXUALLY_EXPLICIT",
+                    threshold="OFF"
+                ),
+                types.SafetySetting(
+                    category="HARM_CATEGORY_HARASSMENT",
+                    threshold="OFF"
+                )
+            ],
+            system_instruction=[system_part],
         )
         
-        # Configure safety settings to allow memorial content 
-        # The most permissive settings for content generation
-        safety_settings = {
-            "HARM_CATEGORY_HARASSMENT": "BLOCK_NONE",
-            "HARM_CATEGORY_HATE_SPEECH": "BLOCK_NONE",
-            "HARM_CATEGORY_SEXUALLY_EXPLICIT": "BLOCK_NONE",
-            "HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE"
-        }
+        # Model to use
+        model = "gemini-2.0-flash-001"
         
-        # Generate content and collect all parts of the response
+        # Generate and collect response
         complete_response = ""
         try:
-            # Create content based on whether we're continuing or starting fresh
-            if continue_from:
-                # Simple prompt for continuation without system instruction
-                response = model.generate_content(
-                    prompt,
-                    generation_config=generation_config,
-                    safety_settings=safety_settings,
-                    stream=True
-                )
-            else:
-                # Combine system instructions with user prompt
-                combined_prompt = f"{system_instruction}\n\n{prompt}"
-                response = model.generate_content(
-                    combined_prompt,
-                    generation_config=generation_config,
-                    safety_settings=safety_settings,
-                    stream=True
-                )
+            response_stream = client.models.generate_content_stream(
+                model=model,
+                contents=contents,
+                config=generate_content_config,
+            )
             
-            # Stream the response
-            for chunk in response:
-                if chunk.text:
+            for chunk in response_stream:
+                if hasattr(chunk, 'text'):
                     complete_response += chunk.text
-                    
+            
             logging.info("Successfully generated document content")
             return complete_response
             
         except Exception as e:
             logging.error(f"Error during content generation: {str(e)}")
-            # If there's an error but we have some content, return what we have
             if complete_response:
-                logging.warning("Returning partial response due to generation error")
                 return complete_response
             return None
             
@@ -285,4 +279,3 @@ def check_for_truncation(content):
     
     # Document appears complete
     return False, None
-

@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime
 from google.cloud import storage
 import google.auth
+import datetime
 
 def store_document(user_id, document_content):
     """
@@ -105,7 +106,7 @@ def get_user_credentials(user_id):
                     "first_name": credentials.get("first_name", ""),
                     "middle_name": credentials.get("middle_name", ""),
                     "last_name": credentials.get("last_name", ""),
-                    "dob": credentials.get("date_of_birth", "")
+                    "date_of_birth": credentials.get("date_of_birth", "")
                 }
                 
                 logging.info(f"Successfully retrieved local credentials for user: {user_id}")
@@ -149,7 +150,7 @@ def get_user_credentials(user_id):
             "first_name": credentials.get("first_name", ""),
             "middle_name": credentials.get("middle_name", ""),
             "last_name": credentials.get("last_name", ""),
-            "dob": credentials.get("date_of_birth", "")
+            "date_of_birth": credentials.get("date_of_birth", "")
         }
         
         logging.info(f"Successfully retrieved credentials for user: {user_id}")
@@ -219,3 +220,76 @@ def _store_document_in_gcp(user_id, document_content):
             return _store_document_locally(user_id, document_content)
         # In production, raise the error
         raise
+
+def save_document_to_gcs(bucket_name, user_id, document_content):
+    """
+    Save document content to Google Cloud Storage, replacing any existing file.
+    
+    Args:
+        bucket_name (str): Name of the GCS bucket
+        user_id (str): User ID used to create the file path
+        document_content (str): The content to save
+        
+    Returns:
+        str: The URL of the saved file or None if error
+    """
+    try:
+        from google.cloud import storage
+        
+        # Create storage client
+        storage_client = storage.Client()
+        
+        # Get bucket
+        bucket = storage_client.bucket(bucket_name)
+        
+        # Define file path with profile_description folder and include userID in filename
+        file_path = f"{user_id}/profile_description/{user_id}_memorial_profile.txt"
+        
+        # Create a blob object
+        blob = bucket.blob(file_path)
+        
+        # Check if file exists - but we'll replace it anyway
+        if blob.exists():
+            logging.info(f"Found existing file for user {user_id}, replacing it")
+        else:
+            logging.info(f"Creating new file in profile_description folder for user {user_id}")
+        
+        # Upload the document content
+        blob.upload_from_string(
+            document_content, 
+            content_type="text/plain"
+        )
+        
+        # Instead of using make_public(), which uses legacy ACLs, 
+        # create a signed URL or construct a public URL if the bucket is already public
+        try:
+            # Option 1: Generate a signed URL with expiration (e.g., 7 days)
+            signed_url = blob.generate_signed_url(
+                version="v4",
+                expiration=datetime.timedelta(days=7),
+                method="GET"
+            )
+            document_url = signed_url
+            
+            # Log only in development mode to avoid sensitive info in logs
+            if os.environ.get("ENVIRONMENT") == "development":
+                logging.info(f"Generated signed URL for document: {document_url}")
+            else:
+                logging.info(f"Generated signed URL for document (URL not logged in production)")
+        except Exception as e:
+            logging.warning(f"Could not generate signed URL: {str(e)}")
+            # Option 2: Construct public URL if bucket is already public
+            document_url = f"https://storage.googleapis.com/{bucket_name}/{file_path}"
+            
+            # Log only in development mode to avoid sensitive info in logs
+            if os.environ.get("ENVIRONMENT") == "development":
+                logging.info(f"Using standard GCS URL: {document_url}")
+            else:
+                logging.info(f"Using standard GCS URL (URL not logged in production)")
+        
+        logging.info(f"Successfully saved document for user {user_id}")
+        return document_url
+        
+    except Exception as e:
+        logging.error(f"Error saving document to GCS: {str(e)}", exc_info=True)
+        return None
